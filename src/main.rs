@@ -10,10 +10,27 @@ use std::io::BufWriter;
 use std::io::BufReader;
 use std::path::Path;
 
+
+use clap::Parser;
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value_t = 1)]
+    x: usize,
+    
+    #[arg(short, long, default_value_t = true)]
+    write_index: bool,
+
+    #[arg(short, long, default_value_t = false)]
+    use_cache: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 struct Index {
     tree: BTreeMap<Box<String>, Box<Vec::<Box<String>>>>,
 }
+
+
 
 fn times(n: usize) -> impl Iterator {
     std::iter::repeat(()).take(n)
@@ -21,8 +38,11 @@ fn times(n: usize) -> impl Iterator {
 
 fn main() {
     let mut index;
+
+    let args = Args::parse();
+
     let index_file = String::from("/tmp/index.tree");
-    if Path::new(&index_file).is_file() {
+    if args.use_cache && Path::new(&index_file).is_file() {
         let start_load = Instant::now();
         let mut f = BufReader::new(File::open(index_file).unwrap());
         let index2: Index = deserialize_from(&mut f).unwrap();
@@ -61,16 +81,18 @@ fn main() {
         println!("Time elapsed building map is: {:?}", duration);
     }
 
+    if args.write_index {
+        let start_save = Instant::now();
+        let mut f = BufWriter::new(File::create("/tmp/index.tree").unwrap());
+        serialize_into(&mut f, &index).unwrap();
+        let duration_save = start_save.elapsed();
+        println!("Time saving map is: {:?}", duration_save);
+    }
 
-    let start_save = Instant::now();
-    let mut f = BufWriter::new(File::create("/tmp/index.tree").unwrap());
-    serialize_into(&mut f, &index).unwrap();
-    let duration_save = start_save.elapsed();
-    println!("Time saving map is: {:?}", duration_save);
 
 
 
-    for _ in times(5) {
+    for _ in times(args.x) {
         let start_look = Instant::now();
         let (key, vals) = if let Some((key, vals)) = index.tree.pop_last()  { (key, vals) } else { todo!() };
         let duration_look = start_look.elapsed();
