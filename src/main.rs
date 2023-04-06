@@ -8,9 +8,11 @@ use std::fs::File;
 use bincode::{serialize_into, deserialize_from};
 use std::io::BufWriter;
 use std::io::BufReader;
+use std::io::Write;
 use std::path::Path;
 
-
+use std::process;
+use rand::{thread_rng, Rng};
 use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -23,6 +25,9 @@ struct Args {
 
     #[arg(short, long, default_value_t = false)]
     use_cache: bool,
+
+    #[arg(short, long, default_value_t = 0)]
+    generate: u32
 }
 
 #[derive(Serialize, Deserialize)]
@@ -40,6 +45,35 @@ fn main() {
     let mut index;
 
     let args = Args::parse();
+
+    if args.generate > 0 {
+        let mut rng = thread_rng();
+
+        let filename = format!("input_gen-{0}", args.generate);
+        let mut f = BufWriter::new(File::create(filename).unwrap());
+        for _ in 0..args.generate {
+            let key : i64 = rng.gen_range(1000000..9999999999);
+            let value : i32 = rng.gen_range(1..999999);
+            match write!(f, "{1} {0}\n", key, value) {
+                Ok(_) => 1,
+                Err(thing) => {
+                    println!("Unable to write to file -- {:?}", thing);
+                    process::exit(10);
+                },
+            };
+        }
+        match f.flush() {
+            Ok(_) =>{
+                println!("Generated #{0} inputs", args.generate);
+                process::exit(0);
+            },
+            Err(thing) => {
+                println!("Unable to flush generate buffer, {:?}", thing);
+                process::exit(1);
+            },
+        };
+    }
+
 
     let index_file = String::from("/tmp/index.tree");
     if args.use_cache && Path::new(&index_file).is_file() {
